@@ -1,3 +1,8 @@
+# --- Access Control ---
+ALLOWED_USER_IDS = {1094871625, 5994127216, 6654137551, 7958155942}
+ALLOWED_GROUP_ID = -1003894038820
+def is_authorized(user_id, chat_id):
+    return user_id in ALLOWED_USER_IDS or chat_id == ALLOWED_GROUP_ID
 import os
 from dotenv import load_dotenv
 import requests
@@ -165,6 +170,22 @@ async def report(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        user_id = update.effective_user.id
+        chat_id = update.effective_chat.id
+        if not is_authorized(user_id, chat_id):
+            await update.message.reply_text(
+                "🚫 <b>Access Denied</b>\nYou are not authorized to use this bot.",
+                parse_mode=ParseMode.HTML
+            )
+            return
+        user_id = update.effective_user.id
+        chat_id = update.effective_chat.id
+        if not is_authorized(user_id, chat_id):
+            await update.message.reply_text(
+                "🚫 <b>Access Denied</b>\nYou are not authorized to use this bot.",
+                parse_mode=ParseMode.HTML
+            )
+            return
     msg = (
         "<b>✨ Welcome to <u>Vargus Account Health Bot</u>! ✨</b>\n\n"
         "<i>Monitor, analyze, and manage your accounts with style.</i>\n\n"
@@ -191,6 +212,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(msg, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        user_id = update.effective_user.id
+        chat_id = update.effective_chat.id
+        if not is_authorized(user_id, chat_id):
+            await update.message.reply_text(
+                "🚫 <b>Access Denied</b>\nYou are not authorized to use this bot.",
+                parse_mode=ParseMode.HTML
+            )
+            return
     accounts = fetch_accounts()
     healthy, failed = analyze_accounts(accounts)
     msg = (
@@ -217,6 +246,14 @@ def format_account_button(account):
     )
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        user_id = update.effective_user.id
+        chat_id = update.effective_chat.id
+        if not is_authorized(user_id, chat_id):
+            await update.callback_query.edit_message_text(
+                "🚫 <b>Access Denied</b>\nYou are not authorized to use this bot.",
+                parse_mode=ParseMode.HTML
+            )
+            return
     query = update.callback_query
     await query.answer()
     accounts = fetch_accounts()
