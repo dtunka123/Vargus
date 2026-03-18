@@ -1,13 +1,4 @@
-okay but am looking some acc are not helaht but listed under healthy look these api Request URL
-https://admin.vargus.tech/api/proxies/health
-Request Method
-GET
-Status Code
-302 Found
-Remote Address
-161.97.68.46:443
-Referrer Policy
-strict-origin-when-cross-origin<main class="flex-1 overflow-y-auto p-4 md:p-8">
+still show 0  <main class="flex-1 overflow-y-auto p-4 md:p-8">
             
 
 <!-- Flash Messages -->
@@ -8652,4 +8643,25 @@ strict-origin-when-cross-origin<main class="flex-1 overflow-y-auto p-4 md:p-8">
   }, 10000);
 </script>
 
-        </main>    enhnce out bot based on the above instruction also 
+        </main>Request URL
+https://admin.vargus.tech/api/proxies/health
+Request Method
+GET
+Status Code
+302 Found
+Remote Address
+161.97.68.46:443
+Referrer Policy
+strict-origin-when-cross-origincurl ^"https://admin.vargus.tech/api/proxies/health^" ^
+  -H ^"Accept: */*^" ^
+  -H ^"Accept-Language: en-US,en;q=0.9,am;q=0.8^" ^
+  -H ^"Connection: keep-alive^" ^
+  -b ^"AIOHTTP_SESSION=^\^"gAAAAABpujgEQFDFySZFlMJ-QtPsu0hxqrOCtdOqrTPZIOa0ELfbYG_J4fILDYFlmhm-DSCVXArpsxGSv4xXiQYOPikvTZrCPP8UJoIB-IqREpVaYPYXwpbLAvytDU2uFrSJTe3SCk0vtedxGSSPbdyJpXZZhbQuf0jl1xvRmQlbw5kwuPHkBqU9GfO9h3HOjTuOdjUmDkqDFTl7WGTCNVG1iX22C3mUpw==^\^"^" ^
+  -H ^"Referer: https://admin.vargus.tech/proxies^" ^
+  -H ^"Sec-Fetch-Dest: empty^" ^
+  -H ^"Sec-Fetch-Mode: cors^" ^
+  -H ^"Sec-Fetch-Site: same-origin^" ^
+  -H ^"User-Agent: Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1^" ^
+  -H ^"sec-ch-ua: ^\^"Not:A-Brand^\^";v=^\^"99^\^", ^\^"Google Chrome^\^";v=^\^"145^\^", ^\^"Chromium^\^";v=^\^"145^\^"^" ^
+  -H ^"sec-ch-ua-mobile: ?1^" ^
+  -H ^"sec-ch-ua-platform: ^\^"iOS^\^"^"

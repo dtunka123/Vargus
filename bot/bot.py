@@ -83,33 +83,38 @@ def fetch_accounts():
         url = f"{ACCOUNTS_URL}?lp={page}&sp=7"
         resp = session.get(url)
         soup = BeautifulSoup(resp.text, "html.parser")
-        rows = soup.select("table tbody tr")
-        if not rows:
-            break
-        for row in rows:
-            cols = row.find_all("td")
-            if len(cols) < 3:
-                continue
-            name = cols[0].get_text(strip=True)
-            phone = cols[1].get_text(strip=True)
-            status = cols[2].get_text(strip=True)
-            # Try to get account type (Listener/Scrapper) from the table or fallback
-            acc_type = "Listener" if "Listener" in status else ("Scrapper" if "Scrapper" in status else "Unknown")
-            # Try to get proxy from the row (4th col)
-            proxy = None
-            if len(cols) > 3:
-                proxy = cols[3].get_text(strip=True)
-            proxy_status = None
-            if proxy and proxy in proxy_health:
-                proxy_status = proxy_health[proxy].get("status")
-            accounts.append({
-                "name": name,
-                "phone": phone,
-                "status": status,
-                "type": acc_type,
-                "proxy": proxy,
-                "proxy_status": proxy_status
-            })
+        # Find all tables for Listener and Scrapper
+        tables = soup.find_all("table")
+        for table in tables:
+            rows = table.find_all("tr")
+            for row in rows[1:]:  # skip header
+                cols = row.find_all("td")
+                if len(cols) < 3:
+                    continue
+                name = cols[0].get_text(strip=True)
+                phone = cols[1].get_text(strip=True)
+                # Status can be multiple stacked badges, so join all badge texts
+                status_col = cols[2]
+                status_badges = status_col.find_all("span")
+                status = " ".join(b.get_text(strip=True) for b in status_badges) if status_badges else status_col.get_text(strip=True)
+                # Determine account type from table header
+                table_header = table.find_previous("h3")
+                acc_type = table_header.get_text(strip=True).split()[0] if table_header else "Unknown"
+                # Try to get proxy from the row (if present)
+                proxy = None
+                if len(cols) > 3:
+                    proxy = cols[3].get_text(strip=True)
+                proxy_status = None
+                if proxy and proxy in proxy_health:
+                    proxy_status = proxy_health[proxy].get("status")
+                accounts.append({
+                    "name": name,
+                    "phone": phone,
+                    "status": status,
+                    "type": acc_type,
+                    "proxy": proxy,
+                    "proxy_status": proxy_status
+                })
         # Check for next page
         next_btn = soup.find("a", string=lambda s: s and "Next" in s)
         if next_btn and "href" in next_btn.attrs:
@@ -190,7 +195,6 @@ def analyze_accounts(accounts):
     for a in accounts:
         acc_status = a.get("status", "")
         proxy_status = a.get("proxy_status", "")
-        # If proxy is Paused or Failing, override account status
         if proxy_status == "Paused":
             paused.append(a)
         elif proxy_status == "Failing":
@@ -199,7 +203,7 @@ def analyze_accounts(accounts):
             disabled.append(a)
         elif proxy_status == "Healthy" and "Active" in acc_status:
             healthy.append(a)
-        else:
+        elif not proxy_status and not acc_status:
             unknown.append(a)
     return healthy, paused, failing, disabled, unknown
 
@@ -246,13 +250,25 @@ async def report(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    chat_id = update.effective_chat.id
+    # Support both Message and CallbackQuery for update
+    if hasattr(update, 'effective_user') and hasattr(update, 'effective_chat'):
+        user_id = update.effective_user.id
+        chat_id = update.effective_chat.id
+        send_func = update.message.reply_text
+    elif hasattr(update, 'callback_query'):
+        user_id = update.callback_query.from_user.id
+        chat_id = update.callback_query.message.chat.id
+        send_func = update.callback_query.message.reply_text
+    else:
+        user_id = None
+        chat_id = None
+        send_func = None
     if not is_authorized(user_id, chat_id):
-        await update.message.reply_text(
-            "🚫 <b>Access Denied</b>\nYou are not authorized to use this bot.",
-            parse_mode=ParseMode.HTML
-        )
+        if send_func:
+            await send_func(
+                "🚫 <b>Access Denied</b>\nYou are not authorized to use this bot.",
+                parse_mode=ParseMode.HTML
+            )
         return
     msg = (
         "<b>✨ Welcome to <u>Vargus Account Health Bot</u>! ✨</b>\n\n"
