@@ -47,13 +47,10 @@
 >
 > 1. Full project structure
 > 2. Complete Python code
-> 3. Database schema
-> 4. Example `.env` file
-> 5. Setup instructions
-> 6. Deployment steps for Ubuntu VPS
-> 7. Sample Telegram report output with beautiful formatting
+> 3. Example `.env` file
+> 4. Setup instructions
 
-Here is a **better premium version** if you want the AI to make it more polished:
+> 5. Sample Telegram report output with beautiful formatting
 
 > Build a production-ready Telegram bot for website uptime monitoring and failure alerting. The bot must continuously monitor my website health and instantly send Telegram alerts when downtime, bad HTTP status codes, timeout issues, or abnormal response delays occur.
 >
@@ -63,7 +60,7 @@ Here is a **better premium version** if you want the AI to make it more polished
 >
 > The code should be modular, secure, and easy to deploy. Include logging, database storage, scheduler, retry logic, and friendly Telegram message formatting.
 
-And here’s a sample `/report` style you can ask for:
+And hereï¿½s a sample `/report` style you can ask for:
 
 ```text
 ?? Website Health Report
@@ -80,6 +77,6 @@ Summary:
 Your website is running well overall. There were 2 short failures in the last 24 hours, but response speed remains healthy.
 ```
 
-One important note: I can help you build the monitoring bot, reporting system, alerts, and deployment flow, but I can’t help create tools that support abuse, fraud, or platform-policy evasion. So it’s best to describe your site simply as an **online store website**.
+One important note: I can help you build the monitoring bot, reporting system, alerts, and deployment flow, but I canï¿½t help create tools that support abuse, fraud, or platform-policy evasion. So itï¿½s best to describe your site simply as an **online store website**.
 
 I can also write the full bot code for you in Python in the next message.
