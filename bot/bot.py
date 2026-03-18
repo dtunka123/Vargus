@@ -197,7 +197,8 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"<b>🟢 Healthy:</b> <code>{len(healthy)}</code>\n"
         f"<b>🔴 Failed:</b> <code>{len(failed)}</code>"
     )
-    await update.message.reply_text(msg, parse_mode=ParseMode.HTML)
+    keyboard = [[InlineKeyboardButton("⬅️ Back to Menu", callback_data="main_menu")]]
+    await update.message.reply_text(msg, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
 
 
 # --- Inline button handlers ---
