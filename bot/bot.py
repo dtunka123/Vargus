@@ -84,36 +84,42 @@ def fetch_accounts():
     proxy_health = fetch_proxy_health()
     listeners = []
     scrappers = []
-    rows = soup.find_all("tr", class_="hover:bg-gray-50")
-    for row in rows:
-        cols = row.find_all("td")
-        if len(cols) < 6:
+    # Find all account tables
+    account_tables = soup.find_all("div", class_="bg-white rounded-xl border border-gray-200 overflow-hidden mb-6")
+    for table in account_tables:
+        header = table.find("h3")
+        if not header:
             continue
-        name = cols[1].get_text(strip=True)
-        phone = cols[2].get_text(strip=True)
-        proxy = None
-        proxy_status = None
-        # Proxy info
-        proxy_span = cols[3].find("span", class_="inline-flex")
-        if proxy_span:
-            proxy = proxy_span.get_text(strip=True)
-            if proxy in proxy_health:
-                proxy_status = proxy_health[proxy].get("status")
-        # Type info: The HTML only shows SOCKS5/HTTP, not Listener/Scrapper. For now, mark all as Listener for test.
-        acc_type = "Listener"
-        # Status info
-        status_col = cols[5]
-        status_span = status_col.find("span")
-        status = status_span.get_text(strip=True) if status_span else status_col.get_text(strip=True)
-        acc = {
-            "name": name,
-            "phone": phone,
-            "status": status,
-            "proxy": proxy,
-            "proxy_status": proxy_status,
-            "type": acc_type
-        }
-        listeners.append(acc)
+        header_text = header.get_text(strip=True)
+        if "Listener Accounts" in header_text:
+            acc_type = "Listener"
+        elif "Scrapper Accounts" in header_text:
+            acc_type = "Scrapper"
+        else:
+            continue
+        rows = table.find_all("tr", class_="hover:bg-gray-50")
+        for row in rows:
+            cols = row.find_all("td")
+            if len(cols) < 3:
+                continue
+            name = cols[0].find("a").get_text(strip=True) if cols[0].find("a") else cols[0].get_text(strip=True)
+            phone = cols[1].get_text(strip=True)
+            # Status info
+            status_col = cols[2]
+            status_span = status_col.find("span")
+            status = status_span.get_text(strip=True) if status_span else status_col.get_text(strip=True)
+            acc = {
+                "name": name,
+                "phone": phone,
+                "status": status,
+                "proxy": None,
+                "proxy_status": None,
+                "type": acc_type
+            }
+            if acc_type == "Listener":
+                listeners.append(acc)
+            elif acc_type == "Scrapper":
+                scrappers.append(acc)
     return {"listeners": listeners, "scrappers": scrappers}
 
 def fetch_account_details(account_name):
