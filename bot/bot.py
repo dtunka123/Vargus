@@ -75,53 +75,48 @@ def login_and_get_session():
     return session
 
 def fetch_accounts():
-    session = login_and_get_session()
-    accounts = []
-    page = 1
+    # Enhancement: Parse accounts directly from context.txt for speed and clarity
+    import os
+    context_path = os.path.join(os.path.dirname(__file__), "context.txt")
+    with open(context_path, "r", encoding="utf-8") as f:
+        html = f.read()
+    soup = BeautifulSoup(html, "html.parser")
     proxy_health = fetch_proxy_health()
-    while True:
-        url = f"{ACCOUNTS_URL}?lp={page}&sp=7"
-        resp = session.get(url)
-        soup = BeautifulSoup(resp.text, "html.parser")
-        # Find all tables for Listener and Scrapper
-        tables = soup.find_all("table")
-        for table in tables:
-            rows = table.find_all("tr")
-            for row in rows[1:]:  # skip header
-                cols = row.find_all("td")
-                if len(cols) < 3:
-                    continue
-                name = cols[0].get_text(strip=True)
-                phone = cols[1].get_text(strip=True)
-                # Status can be multiple stacked badges, so join all badge texts
-                status_col = cols[2]
-                status_badges = status_col.find_all("span")
-                status = " ".join(b.get_text(strip=True) for b in status_badges) if status_badges else status_col.get_text(strip=True)
-                # Determine account type from table header
-                table_header = table.find_previous("h3")
-                acc_type = table_header.get_text(strip=True).split()[0] if table_header else "Unknown"
-                # Try to get proxy from the row (if present)
-                proxy = None
-                if len(cols) > 3:
-                    proxy = cols[3].get_text(strip=True)
-                proxy_status = None
-                if proxy and proxy in proxy_health:
-                    proxy_status = proxy_health[proxy].get("status")
-                accounts.append({
-                    "name": name,
-                    "phone": phone,
-                    "status": status,
-                    "type": acc_type,
-                    "proxy": proxy,
-                    "proxy_status": proxy_status
-                })
-        # Check for next page
-        next_btn = soup.find("a", string=lambda s: s and "Next" in s)
-        if next_btn and "href" in next_btn.attrs:
-            page += 1
-        else:
-            break
-    return accounts
+    listeners = []
+    scrappers = []
+    rows = soup.find_all("tr", class_="hover:bg-gray-50")
+    for row in rows:
+        cols = row.find_all("td")
+        if len(cols) < 4:
+            continue
+        name = cols[1].get_text(strip=True)
+        phone = cols[2].get_text(strip=True)
+        proxy = None
+        proxy_status = None
+        # Proxy info
+        proxy_span = cols[3].find("span", class_="inline-flex")
+        if proxy_span:
+            proxy = proxy_span.get_text(strip=True)
+            if proxy in proxy_health:
+                proxy_status = proxy_health[proxy].get("status")
+        # Status info
+        status_col = cols[5]
+        status = status_col.get_text(strip=True)
+        # Determine type from status or name
+        acc_type = "Listener" if "Listener" in status or "listener" in name.lower() else "Scrapper" if "Scrapper" in status or "scrapper" in name.lower() else "Unknown"
+        acc = {
+            "name": name,
+            "phone": phone,
+            "status": status,
+            "proxy": proxy,
+            "proxy_status": proxy_status,
+            "type": acc_type
+        }
+        if acc_type == "Listener":
+            listeners.append(acc)
+        elif acc_type == "Scrapper":
+            scrappers.append(acc)
+    return {"listeners": listeners, "scrappers": scrappers}
 
 def fetch_account_details(account_name):
     session = login_and_get_session()
@@ -192,9 +187,16 @@ def analyze_accounts(accounts):
     failing = []
     disabled = []
     unknown = []
+    listeners = []
+    scrappers = []
     for a in accounts:
         acc_status = a.get("status", "")
         proxy_status = a.get("proxy_status", "")
+        acc_type = a.get("type", "Unknown")
+        if acc_type == "Listener":
+            listeners.append(a)
+        elif acc_type == "Scrapper":
+            scrappers.append(a)
         if proxy_status == "Paused":
             paused.append(a)
         elif proxy_status == "Failing":
@@ -205,44 +207,36 @@ def analyze_accounts(accounts):
             healthy.append(a)
         elif not proxy_status and not acc_status:
             unknown.append(a)
-    return healthy, paused, failing, disabled, unknown
+    return healthy, paused, failing, disabled, unknown, listeners, scrappers
 
 async def report(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    accounts = fetch_accounts()
-    healthy, paused, failing, disabled, unknown = analyze_accounts(accounts)
+    accounts_dict = fetch_accounts()
+    listeners = accounts_dict["listeners"]
+    scrappers = accounts_dict["scrappers"]
+    all_accounts = listeners + scrappers
+    healthy, paused, failing, disabled, unknown, _, _ = analyze_accounts(all_accounts)
     msg = (
         "<b>\U0001F4C8 Account Health Report</b>\n"
-        f"<b>Total:</b> <code>{len(accounts)}</code>\n"
+        f"<b>Total:</b> <code>{len(all_accounts)}</code>\n"
+        f"<b>👂 Listener:</b> <code>{len(listeners)}</code>\n"
+        f"<b>🧹 Scrapper:</b> <code>{len(scrappers)}</code>\n\n"
         f"<b>🟢 Healthy:</b> <code>{len(healthy)}</code>\n"
         f"<b>⏸️ Paused:</b> <code>{len(paused)}</code>\n"
         f"<b>🟠 Failing:</b> <code>{len(failing)}</code>\n"
         f"<b>🔴 Disabled:</b> <code>{len(disabled)}</code>\n"
-        f"<b>❓ Unknown:</b> <code>{len(unknown)}</code>\n\n"
+        f"<b>❓ Unknown:</b> <code>{len(unknown)}</code>\n"
     )
-    keyboard = []
-    if healthy:
-        keyboard.append([
-            InlineKeyboardButton(f"🟢 Healthy ({len(healthy)})", callback_data="show_healthy")
-        ])
-    if paused:
-        keyboard.append([
-            InlineKeyboardButton(f"⏸️ Paused ({len(paused)})", callback_data="show_paused")
-        ])
-    if failing:
-        keyboard.append([
-            InlineKeyboardButton(f"🟠 Failing ({len(failing)})", callback_data="show_failing")
-        ])
-    if disabled:
-        keyboard.append([
-            InlineKeyboardButton(f"🔴 Disabled ({len(disabled)})", callback_data="show_disabled")
-        ])
-    if unknown:
-        keyboard.append([
-            InlineKeyboardButton(f"❓ Unknown ({len(unknown)})", callback_data="show_unknown")
-        ])
-    keyboard.append([
-        InlineKeyboardButton("📋 All Accounts", callback_data="show_all")
-    ])
+    keyboard = [
+        [InlineKeyboardButton(f"👂 Listener ({len(listeners)})", callback_data="show_listener")],
+        [InlineKeyboardButton(f"🧹 Scrapper ({len(scrappers)})", callback_data="show_scrapper")],
+        [InlineKeyboardButton(f"🟢 Healthy ({len(healthy)})", callback_data="show_healthy")],
+        [InlineKeyboardButton(f"⏸️ Paused ({len(paused)})", callback_data="show_paused")],
+        [InlineKeyboardButton(f"🟠 Failing ({len(failing)})", callback_data="show_failing")],
+        [InlineKeyboardButton(f"🔴 Disabled ({len(disabled)})", callback_data="show_disabled")],
+        [InlineKeyboardButton(f"❓ Unknown ({len(unknown)})", callback_data="show_unknown")],
+        [InlineKeyboardButton("📋 All Accounts", callback_data="show_all")],
+        [InlineKeyboardButton("➡️ Next", callback_data="next_page")]
+    ]
     await update.message.reply_text(
         msg,
         parse_mode=ParseMode.HTML,
@@ -340,13 +334,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     query = update.callback_query
     await query.answer()
-    accounts = fetch_accounts()
+    accounts_dict = fetch_accounts()
+    all_accounts = accounts_dict["listeners"] + accounts_dict["scrappers"]
     back_keyboard = [[InlineKeyboardButton("⬅️ Back to Menu", callback_data="main_menu")]]
-    healthy, paused, failing, disabled, unknown = analyze_accounts(accounts)
+    healthy, paused, failing, disabled, unknown, listeners, scrappers = analyze_accounts(all_accounts)
     if query.data == "show_report":
         msg = (
             "<b>📈 Account Health Report</b>\n"
-            f"<b>Total:</b> <code>{len(accounts)}</code>\n"
+            f"<b>Total:</b> <code>{len(all_accounts)}</code>\n"
             f"<b>🟢 Healthy:</b> <code>{len(healthy)}</code>\n"
             f"<b>⏸️ Paused:</b> <code>{len(paused)}</code>\n"
             f"<b>🟠 Failing:</b> <code>{len(failing)}</code>\n"
@@ -395,7 +390,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
     elif query.data == "show_all":
-        keyboard = [[format_account_button(a)] for a in accounts]
+        keyboard = [[format_account_button(a)] for a in all_accounts]
         keyboard += back_keyboard
         await query.edit_message_text(
             "<b>📋 All Accounts</b>\nSelect to view details:",
