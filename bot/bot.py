@@ -87,7 +87,7 @@ def fetch_accounts():
     rows = soup.find_all("tr", class_="hover:bg-gray-50")
     for row in rows:
         cols = row.find_all("td")
-        if len(cols) < 4:
+        if len(cols) < 6:
             continue
         name = cols[1].get_text(strip=True)
         phone = cols[2].get_text(strip=True)
@@ -99,11 +99,12 @@ def fetch_accounts():
             proxy = proxy_span.get_text(strip=True)
             if proxy in proxy_health:
                 proxy_status = proxy_health[proxy].get("status")
+        # Type info: The HTML only shows SOCKS5/HTTP, not Listener/Scrapper. For now, mark all as Listener for test.
+        acc_type = "Listener"
         # Status info
         status_col = cols[5]
-        status = status_col.get_text(strip=True)
-        # Determine type from status or name
-        acc_type = "Listener" if "Listener" in status or "listener" in name.lower() else "Scrapper" if "Scrapper" in status or "scrapper" in name.lower() else "Unknown"
+        status_span = status_col.find("span")
+        status = status_span.get_text(strip=True) if status_span else status_col.get_text(strip=True)
         acc = {
             "name": name,
             "phone": phone,
@@ -112,10 +113,7 @@ def fetch_accounts():
             "proxy_status": proxy_status,
             "type": acc_type
         }
-        if acc_type == "Listener":
-            listeners.append(acc)
-        elif acc_type == "Scrapper":
-            scrappers.append(acc)
+        listeners.append(acc)
     return {"listeners": listeners, "scrappers": scrappers}
 
 def fetch_account_details(account_name):
@@ -244,19 +242,16 @@ async def report(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Support both Message and CallbackQuery for update
-    if hasattr(update, 'effective_user') and hasattr(update, 'effective_chat'):
-        user_id = update.effective_user.id
-        chat_id = update.effective_chat.id
-        send_func = update.message.reply_text
-    elif hasattr(update, 'callback_query'):
+    # Always show exactly three inline buttons as requested
+    if hasattr(update, 'callback_query') and update.callback_query:
         user_id = update.callback_query.from_user.id
         chat_id = update.callback_query.message.chat.id
         send_func = update.callback_query.message.reply_text
     else:
-        user_id = None
-        chat_id = None
-        send_func = None
+        user_id = update.effective_user.id
+        chat_id = update.effective_chat.id
+        send_func = update.message.reply_text if update.message else None
+
     if not is_authorized(user_id, chat_id):
         if send_func:
             await send_func(
@@ -264,27 +259,18 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parse_mode=ParseMode.HTML
             )
         return
+
     msg = (
         "<b>✨ Welcome to <u>Vargus Account Health Bot</u>! ✨</b>\n\n"
         "<i>Monitor, analyze, and manage your accounts with style.</i>\n\n"
-        "<b>Commands:</b>\n"
-        "• /report — <i>Get a beautiful health report</i>\n"
-        "• /status — <i>Quick healthy/failed count</i>\n\n"
-        "<b>Tip:</b> Use the menu buttons below!"
+        "<b>Choose an option below:</b>"
     )
     keyboard = [
-        [
-            InlineKeyboardButton("📈 Account Health Report", callback_data="show_report")
-        ],
-        [
-            InlineKeyboardButton("🟢 Healthy", callback_data="show_healthy"),
-            InlineKeyboardButton("🔴 Failed", callback_data="show_failed")
-        ],
-        [
-            InlineKeyboardButton("📋 All Accounts", callback_data="show_all")
-        ]
+        [InlineKeyboardButton("📈 Account Health Report", callback_data="show_report")],
+        [InlineKeyboardButton("🟢 Healthy", callback_data="show_healthy"), InlineKeyboardButton("🔴 Failed", callback_data="show_failed")]
     ]
-    await update.message.reply_text(msg, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
+    if send_func:
+        await send_func(msg, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -324,21 +310,40 @@ def format_account_button(account):
     )
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
     if not is_authorized(user_id, chat_id):
-        await update.callback_query.edit_message_text(
+        await query.edit_message_text(
             "🚫 <b>Access Denied</b>\nYou are not authorized to use this bot.",
             parse_mode=ParseMode.HTML
         )
         return
-    query = update.callback_query
     await query.answer()
     accounts_dict = fetch_accounts()
     all_accounts = accounts_dict["listeners"] + accounts_dict["scrappers"]
     back_keyboard = [[InlineKeyboardButton("⬅️ Back to Menu", callback_data="main_menu")]]
     healthy, paused, failing, disabled, unknown, listeners, scrappers = analyze_accounts(all_accounts)
-    if query.data == "show_report":
+
+    if query.data == "show_listener":
+        keyboard = [[format_account_button(a)] for a in accounts_dict["listeners"]]
+        keyboard += back_keyboard
+        await query.edit_message_text(
+            "<b>👂 Listener Accounts</b>\nSelect to view details:",
+            parse_mode=ParseMode.HTML,
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        return
+    elif query.data == "show_scrapper":
+        keyboard = [[format_account_button(a)] for a in accounts_dict["scrappers"]]
+        keyboard += back_keyboard
+        await query.edit_message_text(
+            "<b>🧹 Scrapper Accounts</b>\nSelect to view details:",
+            parse_mode=ParseMode.HTML,
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        return
+    elif query.data == "show_report":
         msg = (
             "<b>📈 Account Health Report</b>\n"
             f"<b>Total:</b> <code>{len(all_accounts)}</code>\n"
@@ -349,6 +354,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"<b>❓ Unknown:</b> <code>{len(unknown)}</code>\n\n"
         )
         await query.edit_message_text(msg, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(back_keyboard))
+        return
     elif query.data == "show_healthy":
         keyboard = [[format_account_button(a)] for a in healthy]
         keyboard += back_keyboard
@@ -357,6 +363,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode=ParseMode.HTML,
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
+        return
     elif query.data == "show_paused":
         keyboard = [[format_account_button(a)] for a in paused]
         keyboard += back_keyboard
@@ -365,6 +372,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode=ParseMode.HTML,
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
+        return
     elif query.data == "show_failing":
         keyboard = [[format_account_button(a)] for a in failing]
         keyboard += back_keyboard
@@ -373,6 +381,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode=ParseMode.HTML,
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
+        return
     elif query.data == "show_disabled":
         keyboard = [[format_account_button(a)] for a in disabled]
         keyboard += back_keyboard
@@ -381,6 +390,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode=ParseMode.HTML,
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
+        return
     elif query.data == "show_unknown":
         keyboard = [[format_account_button(a)] for a in unknown]
         keyboard += back_keyboard
@@ -389,6 +399,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode=ParseMode.HTML,
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
+        return
     elif query.data == "show_all":
         keyboard = [[format_account_button(a)] for a in all_accounts]
         keyboard += back_keyboard
@@ -397,8 +408,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode=ParseMode.HTML,
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
+        return
     elif query.data == "main_menu":
-        await start(query, context)
+        await start(update, context)
+        return
     elif query.data.startswith("acc_"):
         acc_name = query.data[4:]
         details = fetch_account_details(acc_name)
@@ -419,6 +432,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"<b>📅 Registered:</b> <code>{details.get('registered','-')}</code>\n"
         )
         await query.edit_message_text(msg, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(back_keyboard))
+        return
     
 
 def main():
