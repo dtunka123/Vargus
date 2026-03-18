@@ -1,9 +1,12 @@
 import os
+from dotenv import load_dotenv
 import requests
 from bs4 import BeautifulSoup
-from telegram import Update, ParseMode
+from telegram import Update
+from telegram.constants import ParseMode
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
+load_dotenv()
 # Environment variables (set these in your .env or environment)
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
