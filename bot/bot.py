@@ -9,16 +9,26 @@ def get_allowed_ids():
         group_id = None
     return user_ids, group_id
 
-def is_authorized(user_id, chat_id):
+def is_authorized(user_id, chat_id, chat_type=None):
     user_ids, group_id = get_allowed_ids()
-    return user_id in user_ids or chat_id == group_id
+
+    # Private chats: only explicitly selected users.
+    if chat_type == "private":
+        return user_id in user_ids
+
+    # Group chats: only selected users inside the selected group.
+    if chat_type in {"group", "supergroup"}:
+        return chat_id == group_id and user_id in user_ids
+
+    # Fallback for unknown chat types.
+    return False
 import os
 import logging
 import time
 from dotenv import load_dotenv
 import requests
 from bs4 import BeautifulSoup
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
 from telegram.constants import ParseMode
 from telegram.error import BadRequest, TelegramError
 
@@ -568,6 +578,16 @@ def analyze_accounts(accounts):
     return healthy, paused, failing, disabled, unknown, listeners, scrappers, texters
 
 async def report(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+    chat_type = update.effective_chat.type if update.effective_chat else None
+    if not is_authorized(user_id, chat_id, chat_type):
+        await update.message.reply_text(
+            "🚫 <b>Access Denied</b>\nYou are not authorized to use this bot.",
+            parse_mode=ParseMode.HTML
+        )
+        return
+
     accounts_dict = fetch_accounts(strict=False)
     listeners = accounts_dict["listeners"]
     scrappers = accounts_dict["scrappers"]
@@ -601,6 +621,7 @@ async def report(update: Update, context: ContextTypes.DEFAULT_TYPE):
             InlineKeyboardButton(f"📋 All {len(all_accounts)}", callback_data="show_all"),
         ],
         [
+            InlineKeyboardButton(f"🟢 {len(healthy)}", callback_data="show_healthy"),
             InlineKeyboardButton(f"⏸️ {len(paused)}", callback_data="show_paused"),
             InlineKeyboardButton(f"🟠 {len(failing)}", callback_data="show_failing"),
             InlineKeyboardButton(f"🔴 {len(disabled)}", callback_data="show_disabled"),
@@ -618,18 +639,25 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if hasattr(update, 'callback_query') and update.callback_query:
         user_id = update.callback_query.from_user.id
         chat_id = update.callback_query.message.chat.id
+        chat_type = update.callback_query.message.chat.type
         send_func = update.callback_query.message.reply_text
     else:
         user_id = update.effective_user.id
         chat_id = update.effective_chat.id
+        chat_type = update.effective_chat.type if update.effective_chat else None
         send_func = update.message.reply_text if update.message else None
 
-    if not is_authorized(user_id, chat_id):
+    if not is_authorized(user_id, chat_id, chat_type):
         if send_func:
             await send_func(
                 "🚫 <b>Access Denied</b>\nYou are not authorized to use this bot.",
                 parse_mode=ParseMode.HTML
             )
+        return
+
+    # In groups, keep /start concise and action-oriented.
+    if chat_type in {"group", "supergroup"} and not (hasattr(update, 'callback_query') and update.callback_query):
+        await quick(update, context)
         return
 
     msg = (
@@ -646,7 +674,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
-    if not is_authorized(user_id, chat_id):
+    chat_type = update.effective_chat.type if update.effective_chat else None
+    if not is_authorized(user_id, chat_id, chat_type):
         await update.message.reply_text(
             "🚫 <b>Access Denied</b>\nYou are not authorized to use this bot.",
             parse_mode=ParseMode.HTML
@@ -702,7 +731,7 @@ async def show_accounts_page(query, accounts, kind, page):
         page = 0
 
     total = len(accounts)
-    page_size = 5 if kind == "all" else ACCOUNT_PAGE_SIZE
+    page_size = min(max(1, ACCOUNT_PAGE_SIZE), 10)
     total_pages = max(1, (total + page_size - 1) // page_size)
     if page >= total_pages:
         page = total_pages - 1
@@ -736,7 +765,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
-    if not is_authorized(user_id, chat_id):
+    chat_type = update.effective_chat.type if update.effective_chat else None
+    if not is_authorized(user_id, chat_id, chat_type):
         await query.edit_message_text(
             "🚫 <b>Access Denied</b>\nYou are not authorized to use this bot.",
             parse_mode=ParseMode.HTML
@@ -887,7 +917,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def quick(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
-    if not is_authorized(user_id, chat_id):
+    chat_type = update.effective_chat.type if update.effective_chat else None
+    if not is_authorized(user_id, chat_id, chat_type):
         await update.message.reply_text(
             "🚫 <b>Access Denied</b>\nYou are not authorized to use this bot.",
             parse_mode=ParseMode.HTML
@@ -913,10 +944,76 @@ async def quick(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     keyboard = [[InlineKeyboardButton("📈 Open Full Report", callback_data="show_report")]]
     await update.message.reply_text(msg, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
+
+
+async def healthy_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+    chat_type = update.effective_chat.type if update.effective_chat else None
+    if not is_authorized(user_id, chat_id, chat_type):
+        await update.message.reply_text(
+            "🚫 <b>Access Denied</b>\nYou are not authorized to use this bot.",
+            parse_mode=ParseMode.HTML
+        )
+        return
+
+    accounts_dict = fetch_accounts(strict=False)
+    all_accounts = accounts_dict["listeners"] + accounts_dict["scrappers"] + accounts_dict.get("texters", [])
+    healthy, _, _, _, _, _, _, _ = analyze_accounts(all_accounts)
+
+    if not healthy:
+        await update.message.reply_text("No healthy accounts right now.")
+        return
+
+    keyboard = [[format_account_button(a)] for a in healthy[:10]]
+    if len(healthy) > 10:
+        keyboard.append([InlineKeyboardButton("Next ➡️", callback_data="list:healthy:1")])
+    keyboard.append([InlineKeyboardButton("⬅️ Back to Menu", callback_data="main_menu")])
+
+    msg = (
+        "<b>🟢 Healthy Accounts</b>\n"
+        f"Showing <code>1</code>-<code>{min(10, len(healthy))}</code> of <code>{len(healthy)}</code>\n"
+        "Select to view details:"
+    )
+    await update.message.reply_text(msg, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
+
+
+async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+    chat_type = update.effective_chat.type if update.effective_chat else None
+    if not is_authorized(user_id, chat_id, chat_type):
+        await update.message.reply_text(
+            "🚫 <b>Access Denied</b>\nYou are not authorized to use this bot.",
+            parse_mode=ParseMode.HTML
+        )
+        return
+
+    msg = (
+        "<b>🤖 Vargus Bot Commands</b>\n"
+        "<code>/start</code> - Open menu\n"
+        "<code>/report</code> - Full account health report\n"
+        "<code>/quick</code> - Fast one-message stats\n"
+        "<code>/status</code> - Health counters only\n"
+        "<code>/healthy</code> - Open healthy accounts list\n"
+        "<code>/help</code> - Show this help"
+    )
+    await update.message.reply_text(msg, parse_mode=ParseMode.HTML)
     
 
 def main():
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
+    async def post_init(app):
+        commands = [
+            BotCommand("start", "restart / open main menu"),
+            BotCommand("report", "full account health report"),
+            BotCommand("quick", "fast stats in one message"),
+            BotCommand("status", "health counters only"),
+            BotCommand("healthy", "list healthy accounts"),
+            BotCommand("help", "help and commands"),
+        ]
+        await app.bot.set_my_commands(commands)
+
+    app = ApplicationBuilder().token(BOT_TOKEN).post_init(post_init).build()
 
     async def on_error(update: object, context: ContextTypes.DEFAULT_TYPE):
         err = context.error
@@ -932,6 +1029,8 @@ def main():
     app.add_handler(CommandHandler("report", report))
     app.add_handler(CommandHandler("status", status))
     app.add_handler(CommandHandler("quick", quick))
+    app.add_handler(CommandHandler("healthy", healthy_cmd))
+    app.add_handler(CommandHandler("help", help_cmd))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.run_polling()
 
