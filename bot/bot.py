@@ -28,7 +28,14 @@ import time
 from dotenv import load_dotenv
 import requests
 from bs4 import BeautifulSoup
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
+from telegram import (
+    Update,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    BotCommand,
+    BotCommandScopeAllPrivateChats,
+    BotCommandScopeAllGroupChats,
+)
 from telegram.constants import ParseMode
 from telegram.error import BadRequest, TelegramError
 
@@ -655,8 +662,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         return
 
-    # In groups, keep /start concise and action-oriented.
-    if chat_type in {"group", "supergroup"} and not (hasattr(update, 'callback_query') and update.callback_query):
+    # In groups, never show welcome text; return concise status directly.
+    if chat_type in {"group", "supergroup"}:
         await quick(update, context)
         return
 
@@ -690,8 +697,11 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"<b>🟠 Failing:</b> <code>{len(failing)}</code>\n"
         f"<b>🔴 Disabled:</b> <code>{len(disabled)}</code>"
     )
-    keyboard = [[InlineKeyboardButton("⬅️ Back to Menu", callback_data="main_menu")]]
-    await update.message.reply_text(msg, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
+    if chat_type in {"group", "supergroup"}:
+        await update.message.reply_text(msg, parse_mode=ParseMode.HTML)
+    else:
+        keyboard = [[InlineKeyboardButton("⬅️ Back to Menu", callback_data="main_menu")]]
+        await update.message.reply_text(msg, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
 
 
 # --- Inline button handlers ---
@@ -1003,7 +1013,7 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     async def post_init(app):
-        commands = [
+        private_commands = [
             BotCommand("start", "restart / open main menu"),
             BotCommand("report", "full account health report"),
             BotCommand("quick", "fast stats in one message"),
@@ -1011,7 +1021,13 @@ def main():
             BotCommand("healthy", "list healthy accounts"),
             BotCommand("help", "help and commands"),
         ]
-        await app.bot.set_my_commands(commands)
+        group_commands = [
+            BotCommand("report", "full account health report"),
+            BotCommand("quick", "fast stats"),
+            BotCommand("status", "health counters"),
+        ]
+        await app.bot.set_my_commands(private_commands, scope=BotCommandScopeAllPrivateChats())
+        await app.bot.set_my_commands(group_commands, scope=BotCommandScopeAllGroupChats())
 
     app = ApplicationBuilder().token(BOT_TOKEN).post_init(post_init).build()
 
