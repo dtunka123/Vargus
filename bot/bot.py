@@ -54,7 +54,7 @@ ADMIN_USERNAME = os.getenv("ADMIN_USERNAME")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
 ADMIN_URL = os.getenv("ADMIN_URL", "https://admin.vargus.tech/login")
 ACCOUNTS_URL = os.getenv("ACCOUNTS_URL", "https://admin.vargus.tech/accounts")
-BOT_TOKEN = os.getenv("BOT_TOKEN")
+BOT_TOKEN = (os.getenv("BOT_TOKEN") or "").strip()
 ACCOUNT_PAGE_SIZE = int(os.getenv("ACCOUNT_PAGE_SIZE", "20"))
 STRICT_HEALTH_SCORING = os.getenv("STRICT_HEALTH_SCORING", "false").lower() == "true"
 CACHE_TTL_SECONDS = int(os.getenv("CACHE_TTL_SECONDS", "45"))
