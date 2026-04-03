@@ -1,0 +1,34 @@
+services:
+  - type: worker
+    name: vargus-account-health-bot
+    runtime: python
+    rootDir: bot
+    buildCommand: pip install -r requirements.txt
+    startCommand: python bot.py
+    envVars:
+      - key: BOT_TOKEN
+        value: ""
+      - key: ADMIN_USERNAME
+        value: ""
+      - key: ADMIN_PASSWORD
+        value: ""
+      - key: ALLOWED_USER_IDS
+        value: ""
+      - key: ALLOWED_GROUP_ID
+        value: ""
+      - key: ADMIN_URL
+        value: https://admin.vargus.tech/login
+      - key: ACCOUNTS_URL
+        value: https://admin.vargus.tech/accounts
+      - key: PROXIES_URL
+        value: https://admin.vargus.tech/proxies
+      - key: PROXY_HEALTH_URL
+        value: https://admin.vargus.tech/api/proxies/health
+      - key: ACCOUNT_PAGE_SIZE
+        value: "10"
+      - key: CACHE_TTL_SECONDS
+        value: "45"
+      - key: STRICT_HEALTH_SCORING
+        value: "false"
+      - key: USE_CONTEXT_FILE
+        value: "false"
