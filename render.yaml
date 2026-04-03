@@ -6,16 +6,19 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: python bot.py
     envVars:
+      # REQUIRED: set these before first deploy
       - key: BOT_TOKEN
-        value: ""
+        value: REQUIRED_SET_BOT_TOKEN
       - key: ADMIN_USERNAME
-        value: ""
+        value: REQUIRED_SET_ADMIN_USERNAME
       - key: ADMIN_PASSWORD
-        value: ""
+        value: REQUIRED_SET_ADMIN_PASSWORD
       - key: ALLOWED_USER_IDS
-        value: ""
+        value: REQUIRED_SET_ALLOWED_USER_IDS_COMMA_SEPARATED
       - key: ALLOWED_GROUP_ID
-        value: ""
+        value: REQUIRED_SET_ALLOWED_GROUP_ID
+
+      # Optional defaults
       - key: ADMIN_URL
         value: https://admin.vargus.tech/login
       - key: ACCOUNTS_URL
