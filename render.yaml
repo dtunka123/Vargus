@@ -6,32 +6,30 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: python bot.py
     envVars:
-      # REQUIRED: set these before first deploy
+      # Fill all of these manually in Render before deploy
       - key: BOT_TOKEN
-        value: REQUIRED_SET_BOT_TOKEN
+        value: ""
       - key: ADMIN_USERNAME
-        value: REQUIRED_SET_ADMIN_USERNAME
+        value: ""
       - key: ADMIN_PASSWORD
-        value: REQUIRED_SET_ADMIN_PASSWORD
+        value: ""
       - key: ALLOWED_USER_IDS
-        value: REQUIRED_SET_ALLOWED_USER_IDS_COMMA_SEPARATED
+        value: ""
       - key: ALLOWED_GROUP_ID
-        value: REQUIRED_SET_ALLOWED_GROUP_ID
-
-      # Optional defaults
+        value: ""
       - key: ADMIN_URL
-        value: https://admin.vargus.tech/login
+        value: ""
       - key: ACCOUNTS_URL
-        value: https://admin.vargus.tech/accounts
+        value: ""
       - key: PROXIES_URL
-        value: https://admin.vargus.tech/proxies
+        value: ""
       - key: PROXY_HEALTH_URL
-        value: https://admin.vargus.tech/api/proxies/health
+        value: ""
       - key: ACCOUNT_PAGE_SIZE
-        value: "10"
+        value: ""
       - key: CACHE_TTL_SECONDS
-        value: "45"
+        value: ""
       - key: STRICT_HEALTH_SCORING
-        value: "false"
+        value: ""
       - key: USE_CONTEXT_FILE
-        value: "false"
+        value: ""
