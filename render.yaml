@@ -5,31 +5,3 @@ services:
     rootDir: bot
     buildCommand: pip install -r requirements.txt
     startCommand: python bot.py
-    envVars:
-      # Fill all of these manually in Render before deploy
-      - key: BOT_TOKEN
-        value: ""
-      - key: ADMIN_USERNAME
-        value: ""
-      - key: ADMIN_PASSWORD
-        value: ""
-      - key: ALLOWED_USER_IDS
-        value: ""
-      - key: ALLOWED_GROUP_ID
-        value: ""
-      - key: ADMIN_URL
-        value: ""
-      - key: ACCOUNTS_URL
-        value: ""
-      - key: PROXIES_URL
-        value: ""
-      - key: PROXY_HEALTH_URL
-        value: ""
-      - key: ACCOUNT_PAGE_SIZE
-        value: ""
-      - key: CACHE_TTL_SECONDS
-        value: ""
-      - key: STRICT_HEALTH_SCORING
-        value: ""
-      - key: USE_CONTEXT_FILE
-        value: ""
